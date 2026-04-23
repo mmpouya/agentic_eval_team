@@ -5,27 +5,6 @@ from .schema import DataItem, EvaluationPlan, TaskConfig
 
 
 @tool
-def create_worker_agent(
-    agent_id: int,
-    role: str,
-    focus: str,
-    evaluation_instructions: str,
-) -> str:
-    """Create a specialized worker agent for label evaluation.
-
-    Args:
-        agent_id: Unique identifier for this worker
-        role: The role/persona of this worker (e.g., "strict_evaluator", "domain_expert", "lenient_reviewer")
-        focus: What aspect this worker should focus on (e.g., "grammar", "semantic_accuracy", "completeness")
-        evaluation_instructions: Specific instructions for how this worker should evaluate the labels
-
-    Returns:
-        A confirmation message with the agent details
-    """
-    return f"Worker agent {agent_id} created with role='{role}', focus='{focus}'. Instructions: {evaluation_instructions}"
-
-
-@tool
 def assess_difficulty(
     sample_items: list[DataItem],
     task_description: str,

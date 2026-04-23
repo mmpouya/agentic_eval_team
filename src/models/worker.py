@@ -82,24 +82,3 @@ Provide your stance and reasoning."""
             "stance": "agree" if "agree" in response.lower() else "disagree",
             "reasoning": response,
         }
-
-    def discuss_with_peer(self, peer_evaluation: dict, item: DataItem) -> dict:
-        prompt = f"""You are Worker {self.agent_id}, a {self.role} focusing on {self.focus}.
-
-Your evaluation of the item:
-{self.evaluate(item)}
-
-A peer's evaluation:
-{peer_evaluation}
-
-Discuss: Do you maintain your position or do you agree with the peer's reasoning? Be specific about why."""
-
-        response = self._agent.run(prompt)
-
-        return {
-            "worker_id": self.agent_id,
-            "role": self.role,
-            "peer_worker_id": peer_evaluation.get("worker_id"),
-            "discussion": response,
-            "changed_opinion": "yes" if ("agree" in response.lower() or "convinced" in response.lower()) else "no",
-        }

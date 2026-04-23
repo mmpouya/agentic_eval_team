@@ -71,7 +71,10 @@ def main():
         workers.append(worker)
 
     consensus_strategy = manager.get_consensus_strategy()
-    consensus_engine = ConsensusEngine(strategy_name=consensus_strategy)
+    consensus_engine = ConsensusEngine(
+        strategy_name=consensus_strategy,
+        threshold=input_data.task_config.consensus_threshold
+    )
     max_rounds = manager.get_max_rounds()
 
     results = []

@@ -5,14 +5,14 @@ from typing import Any
 from smolagents import CodeAgent, OpenAIModel
 
 from .schema import DataItem, EvaluationPlan, TaskConfig
-from .tools import assess_difficulty, create_worker_agent, plan_evaluation_strategy, create_worker
+from .tools import assess_difficulty, plan_evaluation_strategy, create_worker
 
 
 class ManagerAgent:
     def __init__(self, model: OpenAIModel, task_config: TaskConfig):
         self.model = model
         self.task_config = task_config
-        self._tools = [assess_difficulty, create_worker_agent, plan_evaluation_strategy]
+        self._tools = [assess_difficulty, plan_evaluation_strategy]
         self._agent = CodeAgent(
             model=model,
             tools=self._tools,

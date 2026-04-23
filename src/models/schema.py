@@ -1,11 +1,12 @@
 from pydantic import BaseModel, Field
-from typing import Any, Literal
+from typing import Any
 
 
 class TaskConfig(BaseModel):
     description: str = Field(default="Evaluate labels for accuracy and quality")
     evaluation_criteria: list[str] = Field(default_factory=lambda: ["accuracy", "reasonableness"])
     consensus_strategy: str = Field(default="discussion_then_vote")
+    consensus_threshold: float = Field(default=0.6)
     max_discussion_rounds: int = Field(default=2)
 
 
@@ -26,29 +27,6 @@ class InputData(BaseModel):
         if isinstance(parsed, list):
             return cls(items=[DataItem(**item) for item in parsed])
         return cls(**parsed)
-
-
-class EvaluationResult(BaseModel):
-    evaluation: str
-    reasoning: str
-    suggested_changes: dict[str, Any] = Field(default_factory=dict)
-    confidence: float = 0.5
-    worker_id: int | None = None
-    role: str | None = None
-
-
-class DiscussionResult(BaseModel):
-    worker_id: int
-    role: str | None = None
-    stance: str
-    reasoning: str
-
-
-class ItemEvaluationResult(BaseModel):
-    id: str
-    text: str
-    labels: dict[str, Any]
-    evaluation_summary: dict[str, Any]
 
 
 class EvaluationPlan(BaseModel):
