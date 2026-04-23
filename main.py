@@ -3,12 +3,12 @@ import sys
 from pathlib import Path
 
 from smolagents import OpenAIModel
-from tqdm import tqdm
 
 from src import Config, ConsensusEngine, ManagerAgent, save_json
 from src.models import WorkerAgent, create_worker
 from src.models.schema import DataItem, InputData, TaskConfig
 from src.models.mock_model import MockModel
+from src.evaluation.runner import AsyncEvaluationRunner
 
 
 def main():
@@ -18,6 +18,7 @@ def main():
     parser.add_argument("--endpoint", help="vLLM endpoint", default=None)
     parser.add_argument("--model", help="Model ID", default=None)
     parser.add_argument("--mock", action="store_true", help="Use mock model for testing")
+    parser.add_argument("--parallel", type=int, default=4, help="Max parallel workers for item processing")
     args = parser.parse_args()
 
     config = Config()
@@ -77,72 +78,19 @@ def main():
     )
     max_rounds = manager.get_max_rounds()
 
-    results = []
-    for item in tqdm(items, desc="Evaluating items"):
-        result = evaluate_item(
-            item=item,
-            workers=workers,
-            manager=manager,
-            consensus_engine=consensus_engine,
-            max_rounds=max_rounds,
-            task_config=input_data.task_config,
-        )
-        results.append(result)
+    print(f"Processing {len(items)} items with {args.parallel} parallel workers...")
+    runner = AsyncEvaluationRunner(
+        workers=workers,
+        manager=manager,
+        consensus_engine=consensus_engine,
+        max_rounds=max_rounds,
+        task_config=input_data.task_config,
+        max_workers=args.parallel,
+    )
 
+    results = runner.evaluate_items(items)
     save_json(results, output_path)
     print(f"Results saved to {output_path}")
-
-
-def evaluate_item(
-    item: DataItem,
-    workers: list[WorkerAgent],
-    manager: ManagerAgent,
-    consensus_engine: ConsensusEngine,
-    max_rounds: int,
-    task_config: TaskConfig,
-) -> dict:
-    evaluations = []
-    for worker in workers:
-        eval_result = worker.evaluate(item)
-        evaluations.append(eval_result)
-
-    discussion_history = []
-    for _ in range(max_rounds):
-        if consensus_engine.check_consensus(evaluations):
-            break
-
-        new_evaluations = []
-        for i, worker in enumerate(workers):
-            if i == 0:
-                new_evaluations.append(evaluations[i])
-                continue
-
-            peer_eval = evaluations[0]
-            discussion_result = worker.discuss(peer_eval, item)
-            discussion_history.append(discussion_result)
-
-            updated_eval = worker.evaluate(item)
-            new_evaluations.append(updated_eval)
-
-        evaluations = new_evaluations
-
-    if consensus_engine.check_consensus(evaluations):
-        resolved = consensus_engine.resolve(evaluations, item)
-    else:
-        resolved = manager.tie_break(item, evaluations, discussion_history)
-
-    return {
-        "id": item.id,
-        "text": item.text,
-        "labels": resolved.get("labels", item.labels),
-        "evaluation_summary": {
-            "consensus": resolved.get("consensus", "resolved"),
-            "reasoning": resolved.get("reasoning", ""),
-            "resolved_by": resolved.get("resolved_by", "workers"),
-            "worker_count": len(workers),
-            "discussion_rounds": len(discussion_history),
-        },
-    }
 
 
 if __name__ == "__main__":

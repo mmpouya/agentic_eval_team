@@ -1,0 +1,57 @@
+[
+  {
+    "id": "sample_001",
+    "text": "The recent advancement in artificial intelligence has revolutionized healthcare diagnostics. Machine learning algorithms can now detect diseases from medical imaging with higher accuracy than human radiologists.",
+    "labels": {
+      "category": "technology",
+      "sentiment": "positive",
+      "topics": [
+        "AI",
+        "healthcare",
+        "diagnostics"
+      ]
+    },
+    "evaluation_summary": {
+      "consensus": "correct",
+      "reasoning": "Threshold reached: correct (2/2 >= 0.6)",
+      "resolved_by": "workers",
+      "worker_count": 2,
+      "discussion_rounds": 0
+    }
+  },
+  {
+    "id": "sample_002",
+    "text": "Breaking: Major tech company announces layoffs affecting 10,000 employees across multiple divisions amid restructuring efforts.",
+    "labels": {
+      "category": "business",
+      "sentiment": "negative"
+    },
+    "evaluation_summary": {
+      "consensus": "correct",
+      "reasoning": "Threshold reached: correct (2/2 >= 0.6)",
+      "resolved_by": "workers",
+      "worker_count": 2,
+      "discussion_rounds": 0
+    }
+  },
+  {
+    "id": "sample_003",
+    "text": "Quantum computing represents a paradigm shift in computational capabilities, potentially solving problems that are currently intractable for classical computers.",
+    "labels": {
+      "extracted_keywords": [
+        "quantum",
+        "computing",
+        "paradigm shift",
+        "computational",
+        "classical computers"
+      ]
+    },
+    "evaluation_summary": {
+      "consensus": "correct",
+      "reasoning": "Threshold reached: correct (2/2 >= 0.6)",
+      "resolved_by": "workers",
+      "worker_count": 2,
+      "discussion_rounds": 0
+    }
+  }
+]
