@@ -259,7 +259,3 @@ Each item in the output includes:
   }
 }
 ```
-
-## License
-
-MIT
