@@ -10,6 +10,8 @@ A multi-agent system for evaluating and refining labels on text data using the s
 - **Dynamic Agent Generation**: Manager decides how many workers to create and their specific roles
 - **Hybrid Resolution**: Discussion first, then manager tie-break if needed
 - **Pydantic Validation**: Type-safe input/output with Pydantic models
+- **Retry Logic**: Automatic retry with exponential backoff for API calls
+- **Parallel Processing**: Process multiple items concurrently with `ThreadPoolExecutor`
 
 ## Supported Task Types
 
@@ -33,7 +35,7 @@ A multi-agent system for evaluating and refining labels on text data using the s
 │  • Creates worker agents with specific roles           │
 │  • Plans evaluation strategy                           │
 │  • Tie-breaker when consensus fails                    │
-└───────────────��─────────────────────────────────────────┘
+└─────────────────────────────────────────────────────────┘
                           │
           ┌───────────────┼───────────────┐
           ▼               ▼               ▼
@@ -47,7 +49,7 @@ A multi-agent system for evaluating and refining labels on text data using the s
                           ▼
 ┌─────────────────────────────────────────────────────────┐
 │                  CONSENSUS ENGINE                       │
-│  • Check consensus threshold (default 60%)              │
+│  • Check consensus threshold (configurable, default 60%)│
 │  • Resolve via majority vote, union, or discussion     │
 │  • Manager tie-break if still disagreement             │
 └─────────────────────────────────────────────────────────┘
@@ -84,6 +86,7 @@ Create an input JSON file with `task_config` and `items`:
     "description": "Evaluate whether the assigned categories and sentiments are accurate",
     "evaluation_criteria": ["accuracy", "consistency", "completeness"],
     "consensus_strategy": "discussion_then_vote",
+    "consensus_threshold": 0.6,
     "max_discussion_rounds": 2
   },
   "items": [
@@ -117,6 +120,7 @@ python main.py input.json -o output.json --endpoint http://localhost:8000/v1 --m
 | `--endpoint` | vLLM/OpenAI-compatible endpoint |
 | `--model` | Model identifier |
 | `--mock` | Use mock model for testing |
+| `--parallel` | Max parallel workers for item processing (default: 4) |
 
 ### Task Config Options
 
@@ -125,6 +129,7 @@ python main.py input.json -o output.json --endpoint http://localhost:8000/v1 --m
 | `description` | "Evaluate labels for accuracy and quality" | Task description |
 | `evaluation_criteria` | ["accuracy", "reasonableness"] | What to evaluate |
 | `consensus_strategy` | "discussion_then_vote" | Resolution strategy |
+| `consensus_threshold` | 0.6 | Threshold for consensus (0.0-1.0) |
 | `max_discussion_rounds` | 2 | Max rounds before tie-break |
 
 ### Consensus Strategies
@@ -132,7 +137,7 @@ python main.py input.json -o output.json --endpoint http://localhost:8000/v1 --m
 | Strategy | Description |
 |----------|-------------|
 | `majority_vote` | Simple majority wins |
-| `discussion_then_vote` | Discuss until 60% agreement, then vote |
+| `discussion_then_vote` | Discuss until threshold agreement, then vote |
 | `full_consensus` | Require unanimous agreement |
 | `union` | Combine all extractions (for keywords) |
 
@@ -147,18 +152,22 @@ agentic_eval_team/
 │   ├── config.py              # Configuration
 │   ├── models/
 │   │   ├── manager.py         # Manager agent
-│   │   ├── worker.py         # Worker agents
-│   │   ├── tools.py           # Manager tools (assess_difficulty, create_worker_agent)
+│   │   ├── worker.py          # Worker agents (with retry logic)
+│   │   ├── tools.py           # Manager tools (assess_difficulty, plan_evaluation_strategy)
 │   │   ├── schema.py          # Pydantic models (TaskConfig, DataItem, InputData)
 │   │   └── mock_model.py      # Mock model for testing
 │   ├── consensus/
 │   │   ├── engine.py          # Consensus orchestration
 │   │   └── strategies.py      # Resolution strategies
+│   ├── evaluation/
+│   │   └── runner.py          # Parallel processing runner
 │   ├── tasks/
 │   │   ├── router.py          # Task type detection
-│   │   └── prompts.py         # Prompt templates
+│   │   └── prompts.py          # Prompt templates
 │   └── utils/
-│       └── io.py              # JSON I/O utilities
+│       ├── io.py              # JSON I/O utilities
+│       ├── retry.py           # Retry decorator with exponential backoff
+│       └── errors.py          # Custom exception types
 ├── samples/
 │   └── input_sample.json      # Sample input
 └── tests/
@@ -176,21 +185,41 @@ python -m unittest tests.test_core -v
 Use `--mock` flag to test without a running LLM server:
 
 ```bash
-python main.py samples/input_sample.json -o output.json --mock
+python main.py samples/input_sample.json -o output.json --mock --parallel 2
 ```
+
+## Key Improvements
+
+### Retry Logic
+Worker agents automatically retry failed API calls with exponential backoff:
+- Max retries: 3 (configurable)
+- Initial delay: 1 second
+- Backoff factor: 2x per retry
+- Graceful fallback to error response if all retries fail
+
+### Parallel Processing
+Items can be processed in parallel using `ThreadPoolExecutor`:
+```bash
+python main.py input.json --parallel 4  # Process 4 items concurrently
+```
+
+### Configurable Consensus Threshold
+The `consensus_threshold` in `task_config` controls when consensus is reached:
+- 0.6 = 60% agreement required
+- 1.0 = full consensus required
 
 ## How It Works
 
 ### 1. Manager Analysis
 
-The manager agent samples items from the dataset and uses the `assess_difficulty` tool to determine:
+The manager samples items from the dataset and assesses:
 - Difficulty level (low/medium/high)
 - Recommended strategies
 - Number of discussion rounds
 
 ### 2. Agent Generation
 
-Based on difficulty and task, the manager creates workers with specific roles:
+Based on difficulty and task, workers are created with specific roles:
 - `strict_evaluator`: Focuses on accuracy and correctness
 - `creative_reviewer`: Looks for edge cases and alternatives
 - `domain_expert`: Checks technical/domain accuracy (for high difficulty)
@@ -200,8 +229,8 @@ Based on difficulty and task, the manager creates workers with specific roles:
 
 For each item:
 1. All workers independently evaluate the labels
-2. Consensus is checked (60% threshold by default)
-3. If no consensus, workers discuss and re-evaluate
+2. Consensus is checked against the threshold
+3. If no consensus, all workers discuss and re-evaluate
 4. After max rounds, manager tie-breaks if still disagreement
 
 ### 4. Output
