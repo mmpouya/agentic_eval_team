@@ -2,14 +2,18 @@ from .engine import ConsensusEngine
 from .strategies import (
     ConsensusStrategy,
     MajorityVoteStrategy,
-    DiscussionStrategy,
+    DiscussionThenVoteStrategy,
+    FullConsensusStrategy,
     UnionStrategy,
+    get_strategy,
 )
 
 __all__ = [
     "ConsensusEngine",
     "ConsensusStrategy",
     "MajorityVoteStrategy",
-    "DiscussionStrategy",
+    "DiscussionThenVoteStrategy",
+    "FullConsensusStrategy",
     "UnionStrategy",
+    "get_strategy",
 ]

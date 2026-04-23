@@ -1,45 +1,58 @@
-from smolagents import CodeAgent, OpenAIModel
-from typing import Any
+from smolagents import CodeAgent
+
+from .schema import DataItem, TaskConfig
 
 
 class WorkerAgent:
     def __init__(
         self,
-        model: OpenAIModel,
+        agent: CodeAgent,
         agent_id: int,
-        persona: str = "critical_evaluator",
+        role: str,
+        focus: str,
+        evaluation_instructions: str,
+        task_config: TaskConfig,
     ):
+        self._agent = agent
         self.agent_id = agent_id
-        self.persona = persona
-        self._agent = CodeAgent(
-            model=model,
-            tools=[],
-            description=f"Worker agent {agent_id} - {persona}",
-        )
+        self.role = role
+        self.focus = focus
+        self.evaluation_instructions = evaluation_instructions
+        self.task_config = task_config
 
-    def evaluate(self, item: dict[str, Any], task_prompt: str) -> dict[str, Any]:
-        evaluation_prompt = f"""You are Worker {self.agent_id}, a {self.persona}.
+    def evaluate(self, item: DataItem) -> dict:
+        criteria = ", ".join(self.task_config.evaluation_criteria)
 
-{task_prompt}
+        prompt = f"""You are Worker {self.agent_id}, a {self.role}.
+Focus: {self.focus}
 
-Data to evaluate:
-- ID: {item.get('id', 'unknown')}
-- Text: {item.get('text', '')}
-- Labels: {item.get('labels', {})}
+Task: {self.task_config.description}
+Evaluation Criteria: {criteria}
 
-Provide your evaluation focusing on accuracy and quality."""
+{self.evaluation_instructions}
 
-        response = self._agent.run(evaluation_prompt)
+Data Item:
+- ID: {item.id}
+- Text: {item.text}
+- Labels: {item.labels}
+
+Provide your evaluation in JSON format with these exact keys:
+{{"evaluation": "correct" or "incorrect" or "needs_revision", "reasoning": "...", "suggested_changes": {{...}}, "confidence": 0.0-1.0}}"""
+
+        response = self._agent.run(prompt)
         return self._parse_response(response)
 
-    def _parse_response(self, response: str) -> dict[str, Any]:
+    def _parse_response(self, response: str) -> dict:
         import json
         import re
 
-        json_match = re.search(r"\{[^{}]*\}", response, re.DOTALL)
+        json_match = re.search(r"\{.*\}", response, re.DOTALL)
         if json_match:
             try:
-                return json.loads(json_match.group())
+                result = json.loads(json_match.group())
+                result["worker_id"] = self.agent_id
+                result["role"] = self.role
+                return result
             except json.JSONDecodeError:
                 pass
 
@@ -49,21 +62,44 @@ Provide your evaluation focusing on accuracy and quality."""
             "suggested_changes": {},
             "confidence": 0.5,
             "worker_id": self.agent_id,
+            "role": self.role,
         }
 
-    def discuss(
-        self, other_evaluation: dict[str, Any], item: dict[str, Any]
-    ) -> dict[str, Any]:
-        discussion_prompt = f"""You are Worker {self.agent_id}, a {self.persona}.
+    def discuss(self, other_evaluation: dict, item: DataItem) -> dict:
+        prompt = f"""You are Worker {self.agent_id}, a {self.role}.
 
 Another worker has provided this evaluation:
 {other_evaluation}
 
-Do you agree or disagree? Provide your stance and reasoning."""
+Do you agree or disagree with this evaluation? Consider your role as a {self.role} with focus on {self.focus}.
 
-        response = self._agent.run(discussion_prompt)
+Provide your stance and reasoning."""
+
+        response = self._agent.run(prompt)
         return {
             "worker_id": self.agent_id,
+            "role": self.role,
             "stance": "agree" if "agree" in response.lower() else "disagree",
             "reasoning": response,
+        }
+
+    def discuss_with_peer(self, peer_evaluation: dict, item: DataItem) -> dict:
+        prompt = f"""You are Worker {self.agent_id}, a {self.role} focusing on {self.focus}.
+
+Your evaluation of the item:
+{self.evaluate(item)}
+
+A peer's evaluation:
+{peer_evaluation}
+
+Discuss: Do you maintain your position or do you agree with the peer's reasoning? Be specific about why."""
+
+        response = self._agent.run(prompt)
+
+        return {
+            "worker_id": self.agent_id,
+            "role": self.role,
+            "peer_worker_id": peer_evaluation.get("worker_id"),
+            "discussion": response,
+            "changed_opinion": "yes" if ("agree" in response.lower() or "convinced" in response.lower()) else "no",
         }

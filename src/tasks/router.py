@@ -1,5 +1,5 @@
-from enum import Enum
 from typing import Any
+from enum import Enum
 
 
 class TaskType(Enum):

@@ -1,77 +1,89 @@
 import json
+import random
 from typing import Any
 
 from smolagents import CodeAgent, OpenAIModel
 
-from ..tasks.router import TaskRouter, TaskType
+from .schema import DataItem, EvaluationPlan, TaskConfig
+from .tools import assess_difficulty, create_worker_agent, plan_evaluation_strategy, create_worker
 
 
 class ManagerAgent:
-    def __init__(self, model: OpenAIModel):
+    def __init__(self, model: OpenAIModel, task_config: TaskConfig):
         self.model = model
-        self.router = TaskRouter()
+        self.task_config = task_config
+        self._tools = [assess_difficulty, create_worker_agent, plan_evaluation_strategy]
         self._agent = CodeAgent(
             model=model,
-            tools=[],
+            tools=self._tools,
             description="Manager agent for label evaluation orchestration",
+            planning_interval=5,
         )
+        self._workers: dict[int, Any] = {}
+        self._evaluation_plan: EvaluationPlan | None = None
 
-    def analyze_dataset(self, items: list[dict[str, Any]]) -> dict[str, Any]:
-        task_types: dict[str, int] = {}
-        difficulty_dist: dict[str, int] = {"low": 0, "medium": 0, "high": 0}
+    def analyze_and_plan(self, items: list[DataItem]) -> dict[str, Any]:
+        samples = self._sample_items(items, 5)
+        task_description = self.task_config.description
 
-        for item in items:
-            task_type = self.router.detect_task_type(item)
-            difficulty = self.router.estimate_difficulty(item)
+        difficulty_result = assess_difficulty(samples, task_description)
 
-            type_name = task_type.value
-            task_types[type_name] = task_types.get(type_name, 0) + 1
-
-            if difficulty < 0.4:
-                difficulty_dist["low"] += 1
-            elif difficulty < 0.7:
-                difficulty_dist["medium"] += 1
-            else:
-                difficulty_dist["high"] += 1
-
-        return {
+        dataset_summary = {
             "total_items": len(items),
-            "task_types": task_types,
-            "difficulty_distribution": difficulty_dist,
+            "sample_size": len(samples),
         }
 
-    def plan_evaluation(self, dataset_info: dict[str, Any]) -> dict[str, Any]:
-        task_types = dataset_info.get("task_types", {})
-        difficulty_dist = dataset_info.get("difficulty_distribution", {})
+        plan_result = plan_evaluation_strategy(dataset_summary, difficulty_result, self.task_config)
 
-        strategy = f"Process items by task type. "
-        if "classification" in task_types:
-            strategy += "Use majority voting for classification. "
-        if "translation_choice" in task_types:
-            strategy += "Allow discussion rounds for translation choice. "
-        if "keyword_extraction" in task_types:
-            strategy += "Take union of extracted keywords. "
-        if difficulty_dist.get("high", 0) > 0:
-            strategy += f"Assign more workers ({4-5}) to high-difficulty items."
+        self._evaluation_plan = plan_result
 
-        return {"strategy": strategy, "estimated_rounds": 2}
+        return {
+            "difficulty_assessment": difficulty_result,
+            "evaluation_plan": plan_result.model_dump(),
+        }
 
-    def determine_group_size(self, item: dict[str, Any]) -> int:
-        task_type = self.router.detect_task_type(item)
-        difficulty = self.router.estimate_difficulty(item)
-        return self.router.suggest_group_size(difficulty, task_type)
+    def create_workers(self, model: OpenAIModel) -> dict[int, Any]:
+        if not self._evaluation_plan:
+            raise ValueError("Must call analyze_and_plan before create_workers")
+
+        for config in self._evaluation_plan.worker_agents:
+            worker = create_worker(
+                model=model,
+                agent_id=config["agent_id"],
+                role=config["role"],
+                focus=config["focus"],
+                evaluation_instructions=config["instructions"],
+            )
+            self._workers[config["agent_id"]] = worker
+
+        return self._workers
+
+    def get_consensus_strategy(self) -> str:
+        if not self._evaluation_plan:
+            return "discussion_then_vote"
+        return self._evaluation_plan.consensus_strategy
+
+    def get_max_rounds(self) -> int:
+        if not self._evaluation_plan:
+            return 2
+        return self._evaluation_plan.max_discussion_rounds
+
+    def get_worker_configs(self) -> list[dict[str, Any]]:
+        if not self._evaluation_plan:
+            return []
+        return self._evaluation_plan.worker_agents
 
     def tie_break(
         self,
-        item: dict[str, Any],
+        item: DataItem,
         evaluations: list[dict[str, Any]],
         discussion: list[dict[str, Any]],
     ) -> dict[str, Any]:
         prompt = f"""As the manager, resolve the disagreement for this item.
 
-Item: {item.get('id', 'unknown')}
-Text: {item.get('text', '')}
-Current Labels: {item.get('labels', {})}
+Item ID: {item.id}
+Text: {item.text}
+Current Labels: {json.dumps(item.labels, indent=2)}
 
 Worker Evaluations:
 {json.dumps(evaluations, indent=2)}
@@ -79,33 +91,53 @@ Worker Evaluations:
 Discussion History:
 {json.dumps(discussion, indent=2)}
 
-Make a final decision on the correct labels. Output JSON with final_label and reasoning."""
+Task: {self.task_config.description}
+
+Evaluate the arguments and make a final decision. Output JSON with:
+- final_labels: The corrected labels
+- reasoning: Why this decision was made
+- confidence: Your confidence level (0.0-1.0)"""
 
         response = self._agent.run(prompt)
-        return self._parse_tie_break(response, item)
+        return self._parse_tie_break_response(response, item)
 
-    def _parse_tie_break(
-        self, response: str, item: dict[str, Any]
-    ) -> dict[str, Any]:
+    def _parse_tie_break_response(self, response: str, item: DataItem) -> dict[str, Any]:
         import re
 
-        labels = item.get("labels", {})
+        labels = item.labels
 
         try:
-            import json
-
             json_match = re.search(r"\{.*\}", response, re.DOTALL)
             if json_match:
                 parsed = json.loads(json_match.group())
-                if "final_label" in parsed:
+                if "final_labels" in parsed:
+                    labels = parsed["final_labels"]
+                    reasoning = parsed.get("reasoning", "")
+                    confidence = parsed.get("confidence", 0.5)
+                elif "final_label" in parsed:
                     labels = parsed["final_label"]
                     reasoning = parsed.get("reasoning", "")
+                    confidence = parsed.get("confidence", 0.5)
                 else:
                     labels = parsed
                     reasoning = response
+                    confidence = 0.5
             else:
                 reasoning = response
+                confidence = 0.5
         except Exception:
             reasoning = response
+            confidence = 0.5
 
-        return {"labels": labels, "reasoning": reasoning, "resolved_by": "manager"}
+        return {
+            "labels": labels,
+            "reasoning": reasoning,
+            "confidence": confidence,
+            "resolved_by": "manager",
+        }
+
+    @staticmethod
+    def _sample_items(items: list[DataItem], n: int) -> list[DataItem]:
+        if len(items) <= n:
+            return items
+        return random.sample(items, n)

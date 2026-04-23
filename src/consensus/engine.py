@@ -1,53 +1,25 @@
-from typing import Any
+from typing import Any, Union
+from pydantic import BaseModel
 
-from ..tasks.router import TaskType
 from .strategies import (
     ConsensusStrategy,
-    DiscussionStrategy,
-    MajorityVoteStrategy,
-    UnionStrategy,
+    get_strategy,
 )
 
 
 class ConsensusEngine:
-    def __init__(self):
-        self._strategies: dict[TaskType, type[ConsensusStrategy]] = {
-            TaskType.CLASSIFICATION: MajorityVoteStrategy,
-            TaskType.TRANSLATION_CHOICE: DiscussionStrategy,
-            TaskType.KEYWORD_EXTRACTION: UnionStrategy,
-            TaskType.OTHER: MajorityVoteStrategy,
-        }
-
-    def get_strategy(self, task_type: TaskType) -> ConsensusStrategy:
-        strategy_class = self._strategies.get(task_type, MajorityVoteStrategy)
-        return strategy_class()
+    def __init__(self, strategy_name: str = "discussion_then_vote", **kwargs):
+        self.strategy = get_strategy(strategy_name, **kwargs)
 
     def check_consensus(self, evaluations: list[dict[str, Any]]) -> bool:
-        if len(evaluations) < 2:
-            return True
-
-        votes = [e.get("evaluation", "unknown") for e in evaluations]
-        unique_votes = set(votes)
-
-        if len(unique_votes) == 1:
-            return True
-
-        vote_counts: dict[str, int] = {}
-        for v in votes:
-            vote_counts[v] = vote_counts.get(v, 0) + 1
-
-        total = len(votes)
-        for count in vote_counts.values():
-            if count / total >= 0.6:
-                return True
-
-        return False
+        return self.strategy.check_consensus(evaluations)
 
     def resolve(
         self,
-        task_type: TaskType,
         evaluations: list[dict[str, Any]],
-        item: dict[str, Any],
+        item: Union[dict, BaseModel],
     ) -> dict[str, Any]:
-        strategy = self.get_strategy(task_type)
-        return strategy.resolve(evaluations, item)
+        return self.strategy.resolve(evaluations, item)
+
+    def set_strategy(self, strategy_name: str, **kwargs) -> None:
+        self.strategy = get_strategy(strategy_name, **kwargs)

@@ -1,34 +1,34 @@
-[
-  {
-    "id": "sample_001",
-    "text": "The recent advancement in artificial intelligence has revolutionized healthcare diagnostics. Machine learning algorithms can now detect diseases from medical imaging with higher accuracy than human radiologists.",
-    "labels": {
-      "category": "technology",
-      "sentiment": "positive",
-      "topics": ["AI", "healthcare", "diagnostics"]
-    }
+{
+  "task_config": {
+    "description": "Evaluate whether the assigned categories and sentiments are accurate for each text.",
+    "evaluation_criteria": ["accuracy", "consistency", "completeness"],
+    "consensus_strategy": "discussion_then_vote",
+    "max_discussion_rounds": 2
   },
-  {
-    "id": "sample_002",
-    "text": "Breaking: Major tech company announces layoffs affecting 10,000 employees across multiple divisions amid restructuring efforts.",
-    "labels": {
-      "category": "business",
-      "sentiment": "negative"
+  "items": [
+    {
+      "id": "sample_001",
+      "text": "The recent advancement in artificial intelligence has revolutionized healthcare diagnostics. Machine learning algorithms can now detect diseases from medical imaging with higher accuracy than human radiologists.",
+      "labels": {
+        "category": "technology",
+        "sentiment": "positive",
+        "topics": ["AI", "healthcare", "diagnostics"]
+      }
+    },
+    {
+      "id": "sample_002",
+      "text": "Breaking: Major tech company announces layoffs affecting 10,000 employees across multiple divisions amid restructuring efforts.",
+      "labels": {
+        "category": "business",
+        "sentiment": "negative"
+      }
+    },
+    {
+      "id": "sample_003",
+      "text": "Quantum computing represents a paradigm shift in computational capabilities, potentially solving problems that are currently intractable for classical computers.",
+      "labels": {
+        "extracted_keywords": ["quantum", "computing", "paradigm shift", "computational", "classical computers"]
+      }
     }
-  },
-  {
-    "id": "sample_003",
-    "text": "Three translations were provided for the sentence 'The weather is beautiful today':\nA: Das Wetter ist heute schön.\nB: Heute ist das Wetter wunderschön.\nC: Das heutige Wetter ist schön.",
-    "labels": {
-      "best_translation": "B",
-      "reason": "Most natural and idiomatic"
-    }
-  },
-  {
-    "id": "sample_004",
-    "text": "Quantum computing represents a paradigm shift in computational capabilities, potentially solving problems that are currently intractable for classical computers.",
-    "labels": {
-      "extracted_keywords": ["quantum", "computing", "paradigm shift", "computational", "classical computers"]
-    }
-  }
-]
+  ]
+}
