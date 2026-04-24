@@ -4,9 +4,9 @@ from typing import Any
 
 from tqdm import tqdm
 
-from src.models import WorkerAgent
-from src.consensus import ConsensusEngine
-from src.models.schema import DataItem, TaskConfig
+from agentic_eval_team.models import WorkerAgent
+from agentic_eval_team.consensus import ConsensusEngine
+from agentic_eval_team.models.schema import DataItem, TaskConfig
 
 
 class AsyncEvaluationRunner:

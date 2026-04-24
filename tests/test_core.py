@@ -1,12 +1,12 @@
 import unittest
-from src.consensus.strategies import (
+from agentic_eval_team.consensus.strategies import (
     MajorityVoteStrategy,
     DiscussionThenVoteStrategy,
     FullConsensusStrategy,
     UnionStrategy,
     get_strategy,
 )
-from src.models.schema import TaskConfig, DataItem, InputData
+from agentic_eval_team.models.schema import TaskConfig, DataItem, InputData
 
 
 class TestSchemas(unittest.TestCase):

@@ -4,11 +4,11 @@ from pathlib import Path
 
 from smolagents import OpenAIModel
 
-from src import Config, ConsensusEngine, ManagerAgent, save_json
-from src.models import WorkerAgent, create_worker
-from src.models.schema import DataItem, InputData, TaskConfig
-from src.models.mock_model import MockModel
-from src.evaluation.runner import AsyncEvaluationRunner
+from agentic_eval_team import Config, ConsensusEngine, ManagerAgent, save_json
+from agentic_eval_team.models import WorkerAgent, create_worker
+from agentic_eval_team.models.schema import DataItem, InputData, TaskConfig
+from agentic_eval_team.models.mock_model import MockModel
+from agentic_eval_team.evaluation.runner import AsyncEvaluationRunner
 
 
 def main():

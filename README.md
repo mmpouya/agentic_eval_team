@@ -63,11 +63,20 @@ A multi-agent system for evaluating and refining labels on text data using the s
 
 ## Installation
 
+### From PyPI
+
 ```bash
-pip install -r requirements.txt
+pip install agentic-eval-team
 ```
 
-**Requirements:**
+### From source
+
+```bash
+pip install -e .
+```
+
+### Requirements
+
 - Python 3.10+
 - smolagents
 - openai
@@ -105,8 +114,14 @@ Create an input JSON file with `task_config` and `items`:
 ### 2. Run Evaluation
 
 ```bash
-python main.py input.json -o output.json --mock  # Test with mock model
-python main.py input.json -o output.json --endpoint http://localhost:8000/v1 --model llama-3.1-8b
+# Using the CLI command (after installation)
+agentic-eval input.json -o output.json --mock
+
+# Or using Python module
+python -m agentic_eval_team input.json -o output.json --mock
+
+# With a real model
+agentic-eval input.json -o output.json --endpoint http://localhost:8000/v1 --model llama-3.1-8b
 ```
 
 ## Configuration
@@ -144,17 +159,16 @@ python main.py input.json -o output.json --endpoint http://localhost:8000/v1 --m
 ## Project Structure
 
 ```
-agentic_eval_team/
-├── main.py                    # Entry point
-├── requirements.txt           # Dependencies
-├── src/
+agentic-eval-team/
+├── agentic_eval_team/           # Main package
 │   ├── __init__.py
+│   ├── __main__.py            # CLI entry point
 │   ├── config.py              # Configuration
 │   ├── models/
 │   │   ├── manager.py         # Manager agent
 │   │   ├── worker.py          # Worker agents (with retry logic)
-│   │   ├── tools.py           # Manager tools (assess_difficulty, plan_evaluation_strategy)
-│   │   ├── schema.py          # Pydantic models (TaskConfig, DataItem, InputData)
+│   │   ├── tools.py           # Manager tools
+│   │   ├── schema.py          # Pydantic models
 │   │   └── mock_model.py      # Mock model for testing
 │   ├── consensus/
 │   │   ├── engine.py          # Consensus orchestration
@@ -166,18 +180,20 @@ agentic_eval_team/
 │   │   └── prompts.py          # Prompt templates
 │   └── utils/
 │       ├── io.py              # JSON I/O utilities
-│       ├── retry.py           # Retry decorator with exponential backoff
-│       └── errors.py          # Custom exception types
+│       ├── retry.py           # Retry decorator
+│       └── errors.py          # Custom exceptions
 ├── samples/
 │   └── input_sample.json      # Sample input
-└── tests/
-    └── test_core.py           # Unit tests
+├── tests/
+│   └── test_core.py           # Unit tests
+├── pyproject.toml            # Package configuration
+└── README.md
 ```
 
 ## Testing
 
 ```bash
-python -m unittest tests.test_core -v
+python -m unittest discover tests -v
 ```
 
 ### Mock Testing
@@ -185,7 +201,7 @@ python -m unittest tests.test_core -v
 Use `--mock` flag to test without a running LLM server:
 
 ```bash
-python main.py samples/input_sample.json -o output.json --mock --parallel 2
+agentic-eval samples/input_sample.json -o output.json --mock --parallel 2
 ```
 
 ## Key Improvements
@@ -200,7 +216,7 @@ Worker agents automatically retry failed API calls with exponential backoff:
 ### Parallel Processing
 Items can be processed in parallel using `ThreadPoolExecutor`:
 ```bash
-python main.py input.json --parallel 4  # Process 4 items concurrently
+agentic-eval input.json --parallel 4  # Process 4 items concurrently
 ```
 
 ### Configurable Consensus Threshold
